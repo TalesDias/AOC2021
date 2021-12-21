@@ -59,11 +59,7 @@ data StatusValue s where
   ValidS     :: StatusValue Valid
   CorruptedS :: Char -> StatusValue Corrupted
   MissingS   :: [Char] -> StatusValue Missing
-
-instance Show (StatusValue a) where
-  show ValidS         = "Valid"
-  show (MissingS cs)  = "Missing, must have" ++ cs
-  show (CorruptedS c) = "Corrupted "++[c]
+deriving instance Show (StatusValue s)
 
 
 data ExStatus where
