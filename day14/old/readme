@@ -1,0 +1,7 @@
+To run the profiling do the following:
+
+1. compile with: ghc -prof -fprof-auto solution.hs
+
+2. run with: ./solution +RTS -p
+
+You can see the results in the "solution.prof" file

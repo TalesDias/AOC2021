@@ -1,0 +1,121 @@
+#!/usr/bin/env stack
+{- stack 
+  script
+  --resolver lts-17.5   
+  --package "parsec containers"
+  --optimize
+  --ghc-options=-no-keep-hi-files 
+  --ghc-options=-no-keep-o-files 
+-}
+
+{-
+  So.....
+  This is my naive implementation to solve part 1
+  unfortunately, it does not scale well
+  I've done some profiling, and found out that
+  it would take decades to compute (not even taking 
+  memory in consideration...)
+  But I thought it would be good to leave this 
+  attempt here
+  If you are reading this, take a look at the 
+  actual math here: https://www.desmos.com/calculator/0sojmriv50
+-}
+
+
+module Main(main) where
+
+import Text.Parsec
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as M
+import Data.Sequence(Seq, (<|), (><), Seq(..))
+import qualified Data.Sequence as S
+import Data.Maybe
+
+main :: IO ()
+main = do
+
+  file <- readFile "input.txt"
+  let contents = parse contentP  "input.txt" file
+
+  case contents of
+    Left e -> print e
+    Right (initPoly, rules) -> do
+
+      print "Part1"
+      (print. (minimum >>= (.maximum). subtract) . frequency.  processPolymer 10 rules) initPoly
+
+      print "Part2"
+      -- don't run, takes a LOT of time to finish
+      --(print. (minimum >>= (.maximum). subtract) . frequency.  processPolymer 40 rules) initPoly
+
+  return ()
+
+{-
+   "Part1"
+    2447
+
+    "Part2"
+    ????
+-}
+
+-- Data and Type declarations
+type Polymer = Seq Char
+
+type Rules = Map (Char, Char) Char
+
+-- Logic
+applyRules :: Rules -> Polymer -> Polymer
+applyRules rs py = foldl1 (<++) pairs2
+  where
+    pairs2 = fmap (applyRule rs) pairs
+    pairs  = S.zip py (sTail py)
+
+applyRule :: Rules -> (Char, Char) -> Seq Char
+applyRule rs ba@(before, after)
+  | isJust pos = before <| new <| after <| S.empty
+  | otherwise  = before <|        after <| S.empty
+  where
+    pos = M.lookup ba rs
+    new = fromJust pos
+
+(<++) :: Seq a -> Seq a -> Seq a
+xs <++ (_ :<| ys) = xs >< ys
+infixr 9 <++
+
+sTail :: Seq a -> Seq a
+sTail S.Empty    = S.Empty
+sTail (_ :<| xs) = xs
+
+processPolymer :: Int -> Rules -> Polymer -> Polymer
+processPolymer 0 _  py = py
+processPolymer n rs py = processPolymer (n-1) rs (applyRules rs py)
+
+frequency :: Ord a => Seq a -> [Int]
+frequency xs = map S.length$ group a
+  where a = S.unstableSort  xs 
+
+group :: Eq a => Seq a -> [Seq a]
+group = groupBy (==)
+
+groupBy :: (a -> a -> Bool) -> Seq a -> [Seq a]
+groupBy _ S.Empty     = []
+groupBy eq (x :<| xs) = (x<|ys) : groupBy eq zs
+  where (ys, zs) = S.spanl (eq x) xs
+
+-- Parsing methods
+type Parser = Parsec String ()
+
+numberP :: Parser Int
+numberP = read <$> many1 digit <?> "digit"
+
+ruleP :: Parser ((Char, Char), Char)
+ruleP = (,) <$> ((,) <$> upper <*> upper) <* string " -> " <*> upper
+
+contentP :: Parser (Polymer, Rules)
+contentP = do
+  initPoly <- S.fromList <$> many1 upper
+  _        <- endOfLine <* endOfLine
+  rules    <- manyTill (ruleP  <* endOfLine) eof
+
+  return (initPoly, M.fromList rules)
+
